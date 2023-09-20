@@ -192,5 +192,9 @@ bigram_counts <- hm_bigrams %>%
   count(word1, word2, sort = TRUE)
 ```
 
+Using the bag of words method to analyze the data, we can see that when filtering proportions based on attributes, the individual terms that have high proportions are ones related to the attribute. For example with the attribute parenthood, words such as daughter, kids, and birth are high, or with the attribute of reflection period, has high proportions of terms, family, feel, and day. 
 
+These correlations make sense, as when one discusses the happiness when the individuals are parents, they would mention how their children has changed their life once they were born or the current experience of a child growing up. This would also follow in the other example when one reflects on their life in relation to happiness, they would mention the overall day or their good feelings of their family. For the attribute of marital status, for those that are married mention terms of their spouse at a high proportion when talking about what makes them happy. 
+
+For terms in relation to the attribute gender, there are higher porportions of terms that are typically gender-specifc. For example for female individuals they mention more terms such as their male counterpart (husband, boyfriend), hobbies (crochet, furniture, makeup), and use more emotion-based descriptive terms (blissful, yummy, care).  For the male individuals they mention terms about their female counterpart (wife, girlfriend) or hobbies/interests (beer, sex, nba).
 
