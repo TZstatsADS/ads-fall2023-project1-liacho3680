@@ -25,4 +25,5 @@ proj/
 └── output/
 ```
 *i.e. final rmd file in doc & output word doc in output*
+
 Please see each subfolder for a README file.
