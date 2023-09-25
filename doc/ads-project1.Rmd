@@ -3,11 +3,13 @@ title: "R Notebook"
 output:
   html_document:
     df_print: paged
+  word_document: default
+  pdf_document: default
 ---
 
 HappyDB is a corpus of 100,000 crowd-sourced happy moments via Amazon's Mechanical Turk. You can read more about it on https://arxiv.org/abs/1801.07746.
 
-Here, we explore this data set and try to answer the question, "What makes people happy?"
+Here, we explore this data set and try to answer the question, "What makes people happy?" We will specifically look into demographics, such as gender, age, and marital status.
 
 ### Loading in libraries to be used
 
@@ -19,6 +21,7 @@ library(DT)
 library(scales)
 library(wordcloud2)
 library(gridExtra)
+library(ggplot2)
 library(ngram)
 library(shiny) 
 ```
@@ -34,7 +37,7 @@ hm_data <- read_csv(urlfile)
 
 -We clean the text by converting all the letters to the lower case, and removing punctuation, numbers, empty words and extra white space.
 
-```{r text processing in tm}
+```{r text processing in tm, warning=FALSE, message=FALSE}
 corpus <- VCorpus(VectorSource(hm_data$cleaned_hm))%>%
   tm_map(content_transformer(tolower))%>%
   tm_map(removePunctuation)%>%
@@ -45,7 +48,7 @@ corpus <- VCorpus(VectorSource(hm_data$cleaned_hm))%>%
 
 ### Stemming words and converting tm object to tidy object
 
-```{r stemming}
+```{r stemming, warning=FALSE, message=FALSE}
 stemmed <- tm_map(corpus, stemDocument) %>%
   tidy() %>%
   select(text)
@@ -55,7 +58,7 @@ stemmed <- tm_map(corpus, stemDocument) %>%
 
 -For the ability to look up the words corresponding to the stems.
 
-```{r tidy dictionary}
+```{r tidy dictionary , warning=FALSE, message=FALSE}
 dict <- tidy(corpus) %>%
   select(text) %>%
   unnest_tokens(dictionary, text)
@@ -65,7 +68,7 @@ dict <- tidy(corpus) %>%
 
 -We remove stopwords provided by the "tidytext" package and also add custom stopwords in context of our data.
 
-```{r stopwords}
+```{r stopwords, , warning=FALSE, message=FALSE}
 data("stop_words")
 
 word <- c("happy","ago","yesterday","lot","today","months","month",
@@ -79,7 +82,7 @@ stop_words <- stop_words %>%
 
 Here we combine the stems and the dictionary into the same "tidy" object.
 
-```{r tidy stems with dictionary}
+```{r tidy stems with dictionary, , warning=FALSE, message=FALSE}
 completed <- stemmed %>%
   mutate(id = row_number()) %>%
   unnest_tokens(stems, text) %>%
@@ -120,12 +123,12 @@ hm_data <- hm_data %>%
   mutate(id = row_number()) %>%
   inner_join(completed)
 
-datatable(hm_data)
+head(hm_data)
 ```
 
 ### Exporting the processed text data into a CSV file to be used
 
-```{r export data}
+```{r export data, warning=FALSE, message=FALSE}
 write_csv(hm_data, "processed_moments.csv")
 ```
 
@@ -165,11 +168,10 @@ hm_data <- hm_data %>%
   filter(reflection_period %in% c("24h", "3m")) %>%
   mutate(reflection_period = fct_recode(reflection_period, 
                                         months_3 = "3m", hours_24 = "24h"))
+
+head(hm_data)
 ```
 
-```{r}
-datatable(hm_data)
-```
 ### Create a bag of words using the text data
 
 ```{r bag of words, warning=FALSE, message=FALSE}
@@ -192,9 +194,149 @@ bigram_counts <- hm_bigrams %>%
   count(word1, word2, sort = TRUE)
 ```
 
+### Bar Graph of Top Word Counts
+
+```{r, eda_bargraph, warning=FALSE, message=FALSE}
+wc = word_count %>% filter(n > 3100)
+ggplot(data=wc, aes(x=word, y=n)) + geom_bar(stat="identity", fill = "blue")
+```
+
+We take the top 15 words that have the highest counts of occurrence, and we can see that the words, "day", "friend", and "time" have very large occurrences in this study. Considering elements that a person could mention when discussing about one's happy moments, it would make sense that something that occurred during the day or certain time and also could be with a friend.
+
+### Proportion Graphs
+
+```{r, prop_graph, warning=FALSE, message=FALSE}
+require(gridExtra)
+tempp = bag_of_words %>%
+      count(parenthood, word) %>%
+      group_by(parenthood) %>%
+      mutate(proportion = n / sum(n)) %>% 
+      select(-n) %>% 
+      spread(parenthood, proportion)
+
+pp = ggplot(tempp, 
+             aes_string(x = colnames(tempp)[2], y = colnames(tempp)[3]),
+             color = abs(colnames(tempp)[3] - colnames(tempp)[2])) +
+      geom_abline(color = "gray40", lty = 2) +
+      geom_jitter(alpha = 0.1, size = 1, width = 0.3, height = 0.3) +
+      geom_text(aes(label = word), check_overlap = TRUE, vjust = 1.5) +
+      ggtitle("Proportion for Parenthood Attribute") +
+      xlab("No") + ylab("Yes") + 
+      scale_x_log10(labels = percent_format()) +
+      scale_y_log10(labels = percent_format()) +
+      scale_color_gradient(limits = c(0, 0.001), low = "darkslategray4", high = "gray75") +
+      theme(legend.position="none")
+
+tempr = bag_of_words %>%
+      count(reflection_period, word) %>%
+      group_by(reflection_period) %>%
+      mutate(proportion = n / sum(n)) %>% 
+      select(-n) %>% 
+      spread(reflection_period, proportion)
+
+pr = ggplot(tempr, 
+             aes_string(x = colnames(tempr)[2], y = colnames(tempr)[3]),
+             color = abs(colnames(tempr)[3] - colnames(tempr)[2])) +
+      geom_abline(color = "gray40", lty = 2) +
+      geom_jitter(alpha = 0.1, size = 1, width = 0.3, height = 0.3) +
+      geom_text(aes(label = word), check_overlap = TRUE, vjust = 1.5) +
+      ggtitle("Proportion for Reflection Attribute") +
+      xlab("24 hours") + ylab("3 months") + 
+      scale_x_log10(labels = percent_format()) +
+      scale_y_log10(labels = percent_format()) +
+      scale_color_gradient(limits = c(0, 0.001), low = "darkslategray4", high = "gray75") +
+      theme(legend.position="none")
+
+tempg = bag_of_words %>%
+      count(gender, word) %>%
+      group_by(gender) %>%
+      mutate(proportion = n / sum(n)) %>% 
+      select(-n) %>% 
+      spread(gender, proportion)
+
+pg = ggplot(tempg, 
+             aes_string(x = colnames(tempg)[2], y = colnames(tempg)[3]),
+             color = abs(colnames(tempg)[3] - colnames(tempg)[2])) +
+      geom_abline(color = "gray40", lty = 2) +
+      geom_jitter(alpha = 0.1, size = 1, width = 0.3, height = 0.3) +
+      geom_text(aes(label = word), check_overlap = TRUE, vjust = 1.5) +
+      ggtitle("Proportion for Gender Attribute") +
+      xlab("Female") + ylab("Male") + 
+      scale_x_log10(labels = percent_format()) +
+      scale_y_log10(labels = percent_format()) +
+      scale_color_gradient(limits = c(0, 0.001), low = "darkslategray4", high = "gray75") +
+      theme(legend.position="none")
+
+tempm = bag_of_words %>%
+      count(marital, word) %>%
+      group_by(marital) %>%
+      mutate(proportion = n / sum(n)) %>% 
+      select(-n) %>% 
+      spread(marital, proportion)
+
+pm = ggplot(tempm, 
+             aes_string(x = colnames(tempm)[2], y = colnames(tempm)[3]),
+             color = abs(colnames(tempm)[3] - colnames(tempm)[2])) +
+      geom_abline(color = "gray40", lty = 2) +
+      geom_jitter(alpha = 0.1, size = 1, width = 0.3, height = 0.3) +
+      geom_text(aes(label = word), check_overlap = TRUE, vjust = 1.5) +
+      ggtitle("Proportion for Marital Attribute") +
+      xlab("Female") + ylab("Male") + 
+      scale_x_log10(labels = percent_format()) +
+      scale_y_log10(labels = percent_format()) +
+      scale_color_gradient(limits = c(0, 0.001), low = "darkslategray4", high = "gray75") +
+      theme(legend.position="none")
+
+grid.arrange(pp, pr, pg, pm, ncol=2, nrow = 2)
+```
+
 Using the bag of words method to analyze the data, we can see that when filtering proportions based on attributes, the individual terms that have high proportions are ones related to the attribute. For example with the attribute parenthood, words such as daughter, kids, and birth are high, or with the attribute of reflection period, has high proportions of terms, family, feel, and day. 
 
-These correlations make sense, as when one discusses the happiness when the individuals are parents, they would mention how their children has changed their life once they were born or the current experience of a child growing up. This would also follow in the other example when one reflects on their life in relation to happiness, they would mention the overall day or their good feelings of their family. For the attribute of marital status, for those that are married mention terms of their spouse at a high proportion when talking about what makes them happy. 
+These correlations make sense, as when one discusses the happiness when the individuals are parents, they would mention how their children have changed their life once they were born or the current experience of a child growing up. This would also follow in the other example when one reflects on their life in relation to happiness, they would mention the overall day or their good feelings of their family. For the attribute of marital status, those that are married mention the terms of their spouse at a high proportion when talking about what makes them happy. 
 
-For terms in relation to the attribute gender, there are higher porportions of terms that are typically gender-specifc. For example for female individuals they mention more terms such as their male counterpart (husband, boyfriend), hobbies (crochet, furniture, makeup), and use more emotion-based descriptive terms (blissful, yummy, care).  For the male individuals they mention terms about their female counterpart (wife, girlfriend) or hobbies/interests (beer, sex, nba).
+For terms in relation to the attribute gender, there are higher proportions of terms that are typically gender-specific. For example, for female individuals they mention more terms such as their male counterpart (husband, boyfriend), hobbies (crochet, furniture, makeup), and use more emotion-based descriptive terms (blissful, yummy, care).  For the male individuals they mention terms about their female counterpart (wife, girlfriend) or hobbies/interests (beer, sex, nba).
+
+### Age-Based Graph Considering Word Usage
+
+```{r, agegraph, warning=FALSE, message=FALSE}
+processed <- bag_of_words %>%
+  select(age, word) %>%
+  mutate(age_group = cut(age, seq(0, 100, by = 5), right = FALSE))
+
+wc <- processed %>%
+  group_by(age_group, word) %>%
+  summarise(count = n()) %>%
+  arrange(desc(count))
+
+top_words <- wc %>%
+  group_by(age_group) %>%
+  top_n(3, count)
+
+filtered_top_words <- top_words %>%
+  group_by(age_group) %>%
+  filter(sum(count) > 0, !is.na(age_group))
+
+p = ggplot(filtered_top_words, aes(x = age_group, y = count, fill = word)) +
+  geom_bar(stat = "identity") +
+  facet_wrap(~age_group, scales = "free_y") +
+  labs(title = "Top 3 Words Used in Happy Moments by Age Group (grouped by 5 years)",
+       x = "Age Group",
+       y = "Word Count") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+# Save the larger plot to a file
+ggsave("happy_words_plot.png", plot = p, width = 24, height = 12)
+
+```
+
+![enlarged photo of graph](happy_words_plot.png)
+
+{note: this graph as file name happy_words_plot.png is the more visible graph as it is enlarged, compared to the output directly from the code.}
+
+
+We then conduct a graph to see which words has a high ratio of usage based on age group. These age groups are defined in groups of 5, starting from the lowest age. From this we can see there are words that have high usage across the different ages. For example, for those of younger ages mention about their friend or time, while as the groups that get older (presumably as they get married and/or have children) there are more mentions of their spouse (wife, husband), their children (son, daughter). And with the elderly ages (65+) they start to mention terms related to that life period, such as rest, pain; they are more reflective and more likely to be in the context of retirement with the mention of rest.
+
+Overall these attributes of demographic related factors can affect which words individuals are more likely to use. This is evident with the attributes we looked over: age groups, gender, marital status, and parental status.
+
 
